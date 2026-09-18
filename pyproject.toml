@@ -1,0 +1,11 @@
+[project]
+name = "gridwise-llm"
+version = "1.0.0"
+description = "BUP CSE Fest 2026 GridWise: LLM-interpreted operator directives + LP-optimized campus energy schedule"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = ["live: calls the real configured LLM (skipped when no API key is set)"]
+addopts = "-q"

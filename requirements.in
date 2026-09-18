@@ -1,0 +1,9 @@
+# Top-level runtime dependencies. requirements.txt is the fully pinned lock compiled from this file:
+#   uv pip compile requirements.in -o requirements.txt --python-version 3.12 --python-platform linux
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+pydantic==2.13.5
+anthropic==1.6.0
+httpx==0.28.1
+numpy==2.5.3
+scipy==1.18.1
