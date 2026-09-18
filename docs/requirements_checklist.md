@@ -111,8 +111,8 @@ PS = Problem Statement, PG = Participant Guide & Evaluation Rubric.
 | 68 | No secrets baked into the image | PASS | `docker history` checked; key is supplied at run time |
 | 69 | /health works in the container; full pipeline works in the container | PASS | 10/10 public samples through the container with a real LLM |
 | 70 | Pullable registry image with an exact tag or digest | PASS | `ghcr.io/atikdevx/gridwise-llm:1.0.0` (`@sha256:2e5fc5f9…dffdb`), published by `.github/workflows/docker-publish.yml`. Pulled anonymously, and served 10/10 public samples with real Gemini. |
-| 71 | Public endpoint reachable, no auth, alive during judging | PARTIAL | **Manual:** deploy (`render.yaml` provided) and set `LLM_API_KEY` as a host secret |
-| 72 | Both endpoints tested from outside the dev environment | PARTIAL | **Manual:** after deploying, run `scripts/run_public_samples.py --base-url <public URL>` |
+| 71 | Public endpoint reachable, no auth, alive during judging | PARTIAL | Live at `https://someone-car-packets-finals.trycloudflare.com` (Cloudflare quick tunnel to the team laptop), verified. **Caveat:** it stays alive only while the laptop is awake, online, and running both the server and `cloudflared`, and the URL changes if the tunnel restarts. Cloud Run (README) is the durable option. |
+| 72 | Both endpoints tested from outside the dev environment | PASS | via the public tunnel URL: `/health` 200, malformed JSON 400, 10/10 public samples (median 1.66 s, p95 1.86 s) |
 | 73 | LLM available during judging (keys, quota) | PARTIAL | **Manual:** a Gemini key with enough quota (billing-enabled; free tier limits are low) must be configured on the host |
 
 ## Documentation and repository (PG §2, §4, §5, §7)
