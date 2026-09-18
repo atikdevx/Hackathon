@@ -4,7 +4,7 @@ BUP CSE Fest 2026 Hackathon, Online Preliminary.
 
 GridWise is one HTTP service. It takes a 24-hour campus energy scenario (demand, solar, tariff, battery) plus 1–3 natural-language operator notes. It then:
 
-1. uses a **language model (Claude)** to turn each note into exactly one structured directive, or `no_op`;
+1. uses a **language model (OpenAI GPT)** to turn each note into exactly one structured directive, or `no_op`;
 2. checks that output with **two stages of deterministic guardrails** before any of it is used;
 3. applies the accepted directives as hard constraints in a **linear program** that minimizes grid cost;
 4. **replays** the finished schedule hour by hour and returns it only if every rule holds.
@@ -13,7 +13,7 @@ GridWise is one HTTP service. It takes a 24-hour campus energy scenario (demand,
 |---|---|
 | Endpoints | `GET /health`, `POST /optimize-energy` |
 | Language / framework | Python 3.12, FastAPI, Pydantic v2 |
-| LLM provider / model | Anthropic Claude, `claude-opus-5` by default (configurable, see [Configuration](#configuration)) |
+| LLM provider / model | OpenAI, `gpt-5.6-terra` by default, via Chat Completions with Structured Outputs (configurable, see [Configuration](#configuration)) |
 | Solver | SciPy `linprog` with the HiGHS LP solver (exact, deterministic) |
 | Port | `8000` (override with `PORT`) |
 | Docker image | `ghcr.io/atikdevx/gridwise-llm:1.0.0` (see [Docker](#docker)) |
@@ -51,7 +51,7 @@ HTTP request
 Request validation ── 400 malformed/structural, 422 physically impossible values
   │
   ▼
-LLM interpreter (Claude, one call for all notes, JSON-schema-constrained output)
+LLM interpreter (OpenAI GPT, one call for all notes, JSON-schema-constrained output)
   │   untrusted JSON: type, stated time windows, value, explanation per note
   ▼
 Guardrail stage 1: strict raw-output check + window expansion (start-inclusive, end-exclusive)
@@ -86,7 +86,7 @@ The LLM sits on the interpretation path, and its output is what the optimizer us
 - **The model reads; code counts.** The model makes every language decision: relevance, directive type, AM/PM, numeric values and percentage conversion. Deterministic code (`app/guardrails/llm_output.py`) expands each stated window into hours using the spec's rule: start included, end excluded, wrapping past midnight. The model never enumerates hours itself. This removed the off-by-one errors we measured when models listed hours directly (see [Verification results](#verification-results)). It is the deterministic post-processing for normalization that the Participant Guide allows.
 - **What the model sees:** the notes, plus the battery `capacity_kwh` and base minimum. It needs these to turn "keep 50% of capacity" into kWh. It never sees demand, solar or tariff data. There is no output field for them, so it cannot change them.
 - **Prompt rules:** window boundaries (`1 PM to 3 PM → start 13, end 15 → hours [13, 14]`), 12- and 24-hour clocks, midnight wrap-around, battery charge vs. discharge direction, `factor` as the fraction of solar that remains (`80% reduction → 0.2`), percentage-of-capacity reserves, unit conversion (MWh→kWh, kW over 1 h = kWh), and when a note is a `no_op` distractor.
-- **Provider abstraction:** `app/llm/base.py` defines a small `LLMProvider` protocol. `AnthropicProvider` is the default. `OpenAICompatibleProvider` works with any OpenAI-compatible Chat Completions endpoint (a local Ollama/vLLM server, Groq, OpenRouter, …). Adding another provider means writing one class.
+- **Provider abstraction:** `app/llm/base.py` defines a small `LLMProvider` protocol. The default `OpenAICompatibleProvider` calls OpenAI Chat Completions with `response_format: json_schema` (`strict: true`). For reasoning models (GPT-5.x/6, o-series) it sends `reasoning_effort` and leaves out `temperature`, which those models reject. The same class works with any OpenAI-compatible server (Ollama, vLLM, Docker Model Runner, Groq, OpenRouter). `AnthropicProvider` (Claude) is an alternative. Adding another provider means writing one class.
 - **No phrase-matching fallback.** If the model is unavailable or its output fails the guardrails, the request fails with a controlled error. It never quietly falls back to hard-coded rules.
 - **Safe cache:** identical `(notes, capacity, base minimum, model, prompt version)` inputs reuse a validated interpretation in memory. Repeated requests then skip the model call. The cache never changes scenario numbers, because the schedule is always re-optimized.
 
@@ -133,9 +133,9 @@ These are the results recorded while building the service. Re-run them with the 
 |---|---|
 | Offline suite (`python -m pytest`) | **all passed** (live tests skipped without a model) |
 | Public samples through the full pipeline, with the reference interpretation fed in as the model output | 10/10, cost equal to the reference optimum (difference 0.00 BDT) |
-| **Real LLM in the loop.** Local `ai/qwen2.5:7B-Q4_K_M` through Docker Model Runner, via `openai_compatible` | `pytest -m live`: **29/30**. All 10 public samples pass end to end over HTTP, both from `python -m app` and from the Docker image. |
+| **Real LLM in the loop.** Local `ai/qwen2.5:7B-Q4_K_M` through Docker Model Runner, using the same OpenAI client code | `pytest -m live`: **29/30**. All 10 public samples pass end to end over HTTP, both from `python -m app` and from the Docker image. |
 | Same small model, first design (model listed hours itself) | 21/30. The failures were mostly off-by-one hour lists, which led to the stage-1 window design. |
-| `claude-opus-5` (default production model) | Needs an Anthropic key: run `pytest -m live` and `scripts/run_public_samples.py` after setting `LLM_API_KEY`. The request format is covered offline by `tests/test_anthropic_provider.py`. |
+| `gpt-5.6-terra` (default production model) | Needs an OpenAI key: run `pytest -m live` and `scripts/run_public_samples.py` after setting `LLM_API_KEY`. The request format (structured outputs, `reasoning_effort`, no `temperature`) and error handling are covered offline by `tests/test_openai_provider.py`. |
 | Docker image | Builds; runs as non-root; `/health` ready in about 2 s; `HEALTHCHECK` healthy; no secrets in the image |
 
 The one remaining live miss with the 7B model is the paraphrase "Nobody may draw power from the storage bank", which it read as a charging ban. A frontier model is expected to handle this, but that is not verified here because no key was available.
@@ -166,7 +166,7 @@ subject to  g_h + s_h + d_h = demand_h + c_h                 (energy balance)
 
 - **Local run:** Python **3.12 or newer** and `pip` (the pinned NumPy/SciPy need 3.12+). If your system Python is older, use the `uv` variant below, which downloads Python 3.12 for you.
 - **Docker run:** Docker 20+.
-- **An LLM API key:** an Anthropic API key for the default configuration, or a key for any OpenAI-compatible endpoint.
+- **An LLM API key:** an OpenAI API key for the default configuration (or an Anthropic key with `LLM_PROVIDER=anthropic`).
 
 ## Configuration
 
@@ -174,26 +174,28 @@ All configuration comes from environment variables. `.env.example` lists every n
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `LLM_PROVIDER` | `anthropic` | `anthropic` or `openai_compatible` |
-| `LLM_MODEL` | `claude-opus-5` | Model id. Lower-latency Claude options: `claude-sonnet-5`, `claude-haiku-4-5` |
-| `LLM_API_KEY` | none | **Required** for hosted providers. `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` are also read. Optional for a local `openai_compatible` server. |
-| `LLM_BASE_URL` | provider default | Endpoint for `openai_compatible` (e.g. `https://api.groq.com/openai/v1`), or a proxy |
+| `LLM_PROVIDER` | `openai` | `openai` (alias `openai_compatible`) or `anthropic` |
+| `LLM_MODEL` | `gpt-5.6-terra` | Model id. Cheaper/faster: `gpt-5.6-luna`; stronger: `gpt-5.6-sol`. With `anthropic` the default is `claude-opus-5`. |
+| `LLM_API_KEY` | none | **Required** for hosted providers. `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` for `anthropic`) is also read. Optional for a local OpenAI-compatible server. |
+| `LLM_BASE_URL` | `https://api.openai.com/v1` | Leave empty for OpenAI; set it for a proxy or another OpenAI-compatible server |
 | `LLM_TIMEOUT_SECONDS` | `12` | Per-attempt model timeout |
 | `LLM_MAX_ATTEMPTS` | `2` | Model attempts per request (attempt 2 is the guardrail repair turn); total LLM time is capped at 25 s |
-| `LLM_EFFORT` | `low` | Claude `output_config.effort` (`low`/`medium`/`high`/`none`); ignored for Haiku |
-| `LLM_ENABLE_FALLBACKS` | `true` | Claude Opus 5 server-side refusal fallbacks (`fallbacks: "default"`) |
+| `LLM_EFFORT` | `low` | OpenAI `reasoning_effort` for reasoning models (`none`/`low`/`medium`/`high`), or Claude `output_config.effort` |
+| `LLM_ENABLE_FALLBACKS` | `true` | Anthropic only: Claude Opus 5 server-side refusal fallbacks |
 | `LLM_CACHE_SIZE` | `256` | In-memory interpretation cache size (`0` disables it) |
 | `PORT` | `8000` | HTTP port |
 | `LOG_LEVEL` | `INFO` | Python log level |
 | `WEB_CONCURRENCY` | `2` | Uvicorn worker processes (Docker image only) |
 
-**Model/provider used for this submission:** Anthropic Claude `claude-opus-5` through the Anthropic Messages API, with JSON-schema structured outputs and `effort=low`.
+**Model/provider used for this submission:** OpenAI `gpt-5.6-terra` through the OpenAI Chat Completions API, with Structured Outputs (`json_schema`, `strict: true`) and `reasoning_effort=low`.
+
+To use Claude instead: `LLM_PROVIDER=anthropic LLM_API_KEY=<anthropic key>` (default model `claude-opus-5`).
 
 **Keyless local model** (useful for offline reproduction). Any OpenAI-compatible local server works, for example Docker Model Runner or Ollama. No key is needed when `LLM_BASE_URL` is set:
 
 ```bash
 docker desktop enable model-runner --tcp=12434 && docker model pull ai/qwen2.5:7B-Q4_K_M
-LLM_PROVIDER=openai_compatible LLM_BASE_URL=http://localhost:12434/engines/v1 \
+LLM_PROVIDER=openai LLM_BASE_URL=http://localhost:12434/engines/v1 \
 LLM_MODEL=ai/qwen2.5:7B-Q4_K_M LLM_TIMEOUT_SECONDS=25 python -m app
 # inside Docker, use LLM_BASE_URL=http://host.docker.internal:12434/engines/v1
 ```
@@ -203,7 +205,7 @@ A 7B model on a laptop takes about 7–24 s per request, so use it only for repr
 To run with a different OpenAI-compatible model:
 
 ```bash
-LLM_PROVIDER=openai_compatible LLM_BASE_URL=https://api.groq.com/openai/v1 \
+LLM_PROVIDER=openai LLM_BASE_URL=https://api.groq.com/openai/v1 \
 LLM_MODEL=<model-id> LLM_API_KEY=<key> python -m app
 ```
 
@@ -331,6 +333,7 @@ Test coverage by area:
 |---|---|
 | `tests/test_api.py` | health, valid request and exact schema, malformed JSON, missing fields, note count, duplicate/missing/out-of-range hours, invalid numeric types, NaN, 422 semantics, unconfigured LLM |
 | `tests/test_llm_output.py` | guardrail stage 1: window expansion (end-exclusive, midnight, wrap-around, all day), union of multiple windows, rejection of empty or out-of-range windows, missing/stray values, unsupported types, extra fields, wrong note mapping |
+| `tests/test_openai_provider.py` | OpenAI request shape (endpoint, auth, strict `json_schema`, `reasoning_effort`, no `temperature` for reasoning models; `temperature=0` and no auth for local models), 400/401/403/404/429/5xx, timeouts, refusal/truncation/empty/non-JSON bodies, default-provider config |
 | `tests/test_anthropic_provider.py` | Claude request shape (model, schema, effort, fallbacks beta), Haiku differences, 401/429/5xx/connection errors, refusal/truncation/empty handling, all through a mocked HTTP transport |
 | `tests/test_guardrails.py` | unknown type, duplicate/unsorted/out-of-range/float/empty hours, factor < 0 or > 1, reserve > capacity, negative grid cap, wrong applies/no_op combinations, malformed adjustments, extra keys, duplicate/missing/out-of-order note mapping |
 | `tests/test_optimizer.py` | tariff shifting (exact expected saving), no solar, high solar with curtailment, battery minimum, rate limits, no-charge, no-discharge, reserve, grid cap, 5 simultaneous directives, overlapping directives, exact neutrality, infeasibility, zero-capacity battery. Every plan is also replayed by the independent judge. |
@@ -399,8 +402,8 @@ app/
   models/schemas.py          request/response models, directive enum, exact adjustment keys
   llm/prompt.py              system prompt, JSON schema, repair message
   llm/base.py                LLMProvider protocol
-  llm/anthropic_provider.py  Claude (structured outputs, effort, refusal fallbacks)
-  llm/openai_compatible_provider.py  alternative provider
+  llm/openai_compatible_provider.py  OpenAI Chat Completions + Structured Outputs (default)
+  llm/anthropic_provider.py  Claude alternative (structured outputs, effort, refusal fallbacks)
   llm/interpreter.py         single call, guardrails, repair turn, time budget, cache
   llm/factory.py             builds the provider/interpreter from settings
   guardrails/llm_output.py   stage 1: raw model output check + window expansion
@@ -427,12 +430,12 @@ requirements.in / requirements.txt (fully pinned lock) / requirements-dev.txt
 | [FastAPI](https://fastapi.tiangolo.com) / Starlette | HTTP API | MIT / BSD-3 |
 | [Uvicorn](https://www.uvicorn.org) | ASGI server | BSD-3 |
 | [Pydantic v2](https://docs.pydantic.dev) | typed validation | MIT |
-| [Anthropic Python SDK](https://github.com/anthropics/anthropic-sdk-python) | Claude API client | MIT |
-| [HTTPX](https://www.python-httpx.org) | OpenAI-compatible provider client, test client | BSD-3 |
+| [Anthropic Python SDK](https://github.com/anthropics/anthropic-sdk-python) | optional Claude provider | MIT |
+| [HTTPX](https://www.python-httpx.org) | OpenAI API client (Chat Completions over HTTPS), test client | BSD-3 |
 | [SciPy](https://scipy.org) (with [HiGHS](https://highs.dev)) / [NumPy](https://numpy.org) | linear programming | BSD-3 / MIT |
 | [pytest](https://pytest.org) | tests | MIT |
 
-External services: the Anthropic Claude API (model `claude-opus-5`). AI coding assistance (Claude Code) was used during development. The architecture, guardrails and optimization design are the team's own. All scenario data is the organizers' synthetic data.
+External services: the OpenAI API (model `gpt-5.6-terra`). AI coding assistance (Claude Code) was used during development. The architecture, guardrails and optimization design are the team's own. All scenario data is the organizers' synthetic data.
 
 ## Security and secret handling
 
@@ -445,7 +448,7 @@ External services: the Anthropic Claude API (model `claude-opus-5`). AI coding a
 ## Known limitations
 
 - **Hosted-LLM dependency.** Interpretation needs the configured provider to be reachable. Outages or quota exhaustion produce a controlled `500 llm_unavailable`, not a guessed schedule, because falling back to phrase matching is not allowed. Keep quota available during judging.
-- **Latency depends on the model.** The LP takes a few milliseconds, so almost all request time is the single model call. `claude-opus-5` at `effort=low` is the accuracy-first default. If p95 latency matters more, switch `LLM_MODEL` to `claude-sonnet-5` or `claude-haiku-4-5` (one env var) and re-run `pytest -m live`.
+- **Latency depends on the model.** The LP takes a few milliseconds, so almost all request time is the single model call. `gpt-5.6-terra` at `reasoning_effort=low` is the default. If p95 latency is above 5 s, try `LLM_EFFORT=none` or `LLM_MODEL=gpt-5.6-luna` (one env var each) and re-run `pytest -m live` to confirm accuracy holds.
 - **One directive per note.** This follows the spec. A note that states two constraints at once (for example "battery fully offline") would be mapped to the single best-fitting type.
 - **Conservative composition.** If two notes reduce solar in the same hour, the factors multiply. The spec does not define this case, and multiplying keeps the plan valid under either reading.
 - **Cache per worker.** The interpretation cache lives in each worker's memory and is not shared between replicas.

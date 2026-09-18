@@ -9,6 +9,8 @@ import os
 from dataclasses import dataclass, field
 from functools import lru_cache
 
+OPENAI_PROVIDERS = ("openai", "openai_compatible")
+
 
 def _env_str(name: str, default: str) -> str:
     value = os.getenv(name)
@@ -44,7 +46,7 @@ def _env_bool(name: str, default: bool) -> bool:
 
 @dataclass(frozen=True)
 class Settings:
-    # LLM provider selection: "anthropic" (default) or "openai_compatible".
+    # LLM provider selection: "openai" (default), "openai_compatible" (alias) or "anthropic".
     llm_provider: str
     llm_model: str
     llm_api_key: str | None = field(repr=False)
@@ -60,7 +62,7 @@ class Settings:
 
     @property
     def llm_configured(self) -> bool:
-        keyless_local = self.llm_provider == "openai_compatible" and bool(self.llm_base_url)
+        keyless_local = self.llm_provider in OPENAI_PROVIDERS and bool(self.llm_base_url)
         return bool(self.llm_api_key) or keyless_local
 
 
@@ -75,18 +77,19 @@ def _resolve_api_key(provider: str) -> str | None:
 
 
 DEFAULT_MODELS = {
+    "openai": "gpt-5.6-terra",
+    "openai_compatible": "gpt-5.6-terra",
     "anthropic": "claude-opus-5",
-    "openai_compatible": "gpt-4o-mini",
 }
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    provider = _env_str("LLM_PROVIDER", "anthropic").lower()
+    provider = _env_str("LLM_PROVIDER", "openai").lower()
     effort = _env_str("LLM_EFFORT", "low").lower()
     return Settings(
         llm_provider=provider,
-        llm_model=_env_str("LLM_MODEL", DEFAULT_MODELS.get(provider, "claude-opus-5")),
+        llm_model=_env_str("LLM_MODEL", DEFAULT_MODELS.get(provider, DEFAULT_MODELS["openai"])),
         llm_api_key=_resolve_api_key(provider),
         llm_base_url=os.getenv("LLM_BASE_URL") or None,
         llm_timeout_seconds=_env_float("LLM_TIMEOUT_SECONDS", 12.0),

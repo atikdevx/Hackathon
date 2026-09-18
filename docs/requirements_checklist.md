@@ -40,9 +40,9 @@ PS = Problem Statement, PG = Participant Guide & Evaluation Rubric.
 | 22 | 12-hour and 24-hour time expressions | PASS | live semantic cases (7B local model); prompt rules |
 | 23 | factor is the remaining fraction (80% reduction → 0.2) | PASS | live SAMPLE-09 and `Expect an 80% reduction ...` |
 | 24 | Percentages and equivalent numeric wording (share of capacity, one-fifth, MWh) | PASS | live `75% full` → 180, `0.2 MWh` → 200, SAMPLE-03 (50% → 100) |
-| 25 | Paraphrase robustness | PARTIAL | 29/30 live paraphrase cases with the local 7B model; not yet run against the production model `claude-opus-5` because no key was available (run `pytest -m live`) |
+| 25 | Paraphrase robustness | PARTIAL | 29/30 live paraphrase cases with the local 7B model; not yet run against the production model `gpt-5.6-terra` because no OpenAI key was available (run `pytest -m live`) |
 | 26 | LLM must not invent demand, tariff, solar or battery values | PASS | the model never receives or returns those fields; extra keys rejected (`test_extra_or_missing_fields_rejected`, `extra adjustment key`) |
-| 27 | Structured-output / JSON-schema invocation | PASS | `output_config.format` (Claude) and `response_format.json_schema` (OpenAI-compatible); `test_request_shape_and_text_extraction` |
+| 27 | Structured-output / JSON-schema invocation | PASS | OpenAI `response_format.json_schema` with `strict: true` (`test_openai_reasoning_model_request_shape`); Claude `output_config.format` (`test_request_shape_and_text_extraction`) |
 | 28 | Provider/model configurable through env; no hard-coded credentials | PASS | `app/config.py`, `.env.example`; `test_api_key_not_in_settings_repr` |
 | 29 | Model/provider documented | PASS | README table and Configuration section |
 
@@ -97,9 +97,9 @@ PS = Problem Statement, PG = Participant Guide & Evaluation Rubric.
 |---|---|---|---|
 | 60 | /health ready within 60 s of start | PASS | about 1.8 s in Docker (measured) |
 | 61 | Each request finishes within 30 s | PASS | total LLM budget capped at 25 s (`TOTAL_LLM_BUDGET_SECONDS`); `test_timeout_is_controlled_and_bounded`; the LP takes a few ms |
-| 62 | p95 ≤ 5 s | PARTIAL | pipeline overhead is under 20 ms and cache hits take 0.01 s; p95 with `claude-opus-5` is not measured without a key. The local 7B model on a laptop gave p95 of about 24 s. If Opus latency is too high, switch `LLM_MODEL` to `claude-sonnet-5` or `claude-haiku-4-5`. |
+| 62 | p95 ≤ 5 s | PARTIAL | pipeline overhead is under 20 ms and cache hits take 0.01 s; p95 with `gpt-5.6-terra` is not measured without a key. The local 7B model on a laptop gave p95 of about 24 s. If it is too slow, set `LLM_EFFORT=none` or `LLM_MODEL=gpt-5.6-luna`. |
 | 63 | Stable across repeated requests | PASS | `test_repeated_api_requests_are_stable` (15×); 25+ live requests without errors |
-| 64 | Provider timeout, rate limit, outage, malformed output handled | PASS | `tests/test_reliability.py`, `tests/test_anthropic_provider.py` |
+| 64 | Provider timeout, rate limit, outage, malformed output handled | PASS | `tests/test_reliability.py`, `tests/test_openai_provider.py`, `tests/test_anthropic_provider.py` |
 | 65 | Optimizer failure and infeasibility handled | PASS | `test_optimizer_failure_is_controlled`, `test_infeasible_directives_return_422` |
 | 66 | No secrets in repo, logs or responses | PASS | secret-leak tests; repo grep; `.gitignore` / `.dockerignore` |
 
@@ -113,7 +113,7 @@ PS = Problem Statement, PG = Participant Guide & Evaluation Rubric.
 | 70 | Pullable registry image with an exact tag or digest | PARTIAL | **Manual:** push `ghcr.io/<user>/gridwise-llm:1.0.0` (commands in README) and make the package public |
 | 71 | Public endpoint reachable, no auth, alive during judging | PARTIAL | **Manual:** deploy (`render.yaml` provided) and set `LLM_API_KEY` as a host secret |
 | 72 | Both endpoints tested from outside the dev environment | PARTIAL | **Manual:** after deploying, run `scripts/run_public_samples.py --base-url <public URL>` |
-| 73 | LLM available during judging (keys, quota) | PARTIAL | **Manual:** a funded Anthropic key must be configured on the host |
+| 73 | LLM available during judging (keys, quota) | PARTIAL | **Manual:** a funded OpenAI key (with enough rate limit) must be configured on the host |
 
 ## Documentation and repository (PG §2, §4, §5, §7)
 
