@@ -409,6 +409,37 @@ Manual steps:
 
 Keep the service on an always-on plan during judging, because free instances sleep and cold starts are slow. The same image also runs unchanged on Railway, Fly.io, Google Cloud Run, Azure Container Apps and similar hosts: set `LLM_API_KEY` and expose the port.
 
+### Google Cloud Run (free tier)
+
+Cloud Run builds this Dockerfile, sets `PORT=8080` (the image honors it), scales to zero, and its free tier (2 M requests/month in `us-central1`) covers judging. It needs a Google Cloud project with **billing enabled**; new accounts get free credit. The Gemini key is stored in Secret Manager, never in the image or in the command line. `.gcloudignore` keeps `.env` out of the uploaded source.
+
+```bash
+brew install --cask google-cloud-sdk            # or https://cloud.google.com/sdk/docs/install
+gcloud auth login
+PROJECT=gridwise-$RANDOM; REGION=us-central1
+gcloud projects create $PROJECT && gcloud config set project $PROJECT
+gcloud billing accounts list                    # copy the ACCOUNT_ID
+gcloud billing projects link $PROJECT --billing-account=<ACCOUNT_ID>
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com
+
+# Store the Gemini key as a secret (read straight from .env, never echoed)
+grep '^LLM_API_KEY=' .env | cut -d= -f2- | tr -d '\n' | gcloud secrets create gemini-api-key --data-file=-
+SA=$(gcloud projects describe $PROJECT --format='value(projectNumber)')-compute@developer.gserviceaccount.com
+gcloud secrets add-iam-policy-binding gemini-api-key --member=serviceAccount:$SA --role=roles/secretmanager.secretAccessor
+gcloud projects add-iam-policy-binding $PROJECT --member=serviceAccount:$SA --role=roles/run.builder
+
+# Build + deploy (public, no auth)
+gcloud run deploy gridwise --source . --region $REGION --allow-unauthenticated \
+  --set-secrets LLM_API_KEY=gemini-api-key:latest --set-env-vars WEB_CONCURRENCY=1 \
+  --cpu 1 --memory 1Gi --timeout 60 --cpu-boost --min-instances 0 --max-instances 3
+
+URL=$(gcloud run services describe gridwise --region $REGION --format='value(status.url)')
+curl -s $URL/health
+python scripts/run_public_samples.py --base-url $URL
+```
+
+With `--min-instances 0`, the first request after an idle period includes a cold start of a few seconds. For the judging window, `gcloud run services update gridwise --region $REGION --min-instances 1` keeps one instance warm. This costs a small amount outside the free tier. Set it back to 0 afterwards.
+
 ## Project layout
 
 ```
