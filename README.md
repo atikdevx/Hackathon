@@ -393,7 +393,12 @@ Record the pushed digest (`docker buildx imagetools inspect <image>:1.0.0`) in t
 
 ## Deployment
 
-Any host that runs a container and sets `PORT` will work. `render.yaml` is a ready-made blueprint for [Render](https://render.com):
+Any host that runs a container and sets `PORT` will work. `render.yaml` is a ready-made blueprint for [Render](https://render.com).
+
+**One-click deploy:** [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/atikdevx/Hackathon)
+(opens Render's Blueprint flow for this repo; paste your Gemini key when it asks for `LLM_API_KEY`).
+
+Manual steps:
 
 1. Push this repository to GitHub.
 2. In Render, choose **New → Blueprint** and select the repo. Render builds the `Dockerfile`.
