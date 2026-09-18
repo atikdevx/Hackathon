@@ -359,12 +359,20 @@ curl -s http://localhost:8000/health
 python scripts/run_public_samples.py --base-url http://localhost:8000
 ```
 
-Pull the published fallback image instead of building:
+Pull the published fallback image instead of building. It is public, multi-arch (amd64/arm64), and needs no login:
 
 ```bash
 docker pull ghcr.io/atikdevx/gridwise-llm:1.0.0
-docker run --rm -p 8000:8000 -e LLM_API_KEY=<your-key> ghcr.io/atikdevx/gridwise-llm:1.0.0
+docker run --rm -p 8000:8000 -e LLM_API_KEY=<your-gemini-key> ghcr.io/atikdevx/gridwise-llm:1.0.0
 ```
+
+| Image reference | Value |
+|---|---|
+| Tag | `ghcr.io/atikdevx/gridwise-llm:1.0.0` |
+| Digest | `ghcr.io/atikdevx/gridwise-llm@sha256:a8f213db231ccf6a9720481537db8b78de2cc4f393adf12a587c9200dcbc7753` |
+| Port | `8000` (override with `-e PORT=...`) |
+| Required env | `LLM_API_KEY` (Gemini key); everything else has defaults |
+| Verified | pulled anonymously, `/health` OK, 10/10 public samples with real Gemini (p95 2.5 s) |
 
 **Automated publishing:** `.github/workflows/docker-publish.yml` runs on every push to `main`. It runs the test suite, builds a multi-arch image (amd64 + arm64), pushes `ghcr.io/atikdevx/gridwise-llm:1.0.0` (plus `:latest` and `:sha-<commit>`), and smoke-tests `/health` on the published image. It uses GitHub's built-in token, so no personal credentials are needed. Once the first run finishes, open GitHub → your profile → **Packages** → `gridwise-llm` → **Package settings** and set visibility to **Public** so judges can pull without logging in.
 

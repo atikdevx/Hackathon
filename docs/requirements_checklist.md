@@ -110,7 +110,7 @@ PS = Problem Statement, PG = Participant Guide & Evaluation Rubric.
 | 67 | Dockerfile builds; binds 0.0.0.0; exposes the documented port | PASS | built and run locally; `EXPOSE 8000`; `--host 0.0.0.0` |
 | 68 | No secrets baked into the image | PASS | `docker history` checked; key is supplied at run time |
 | 69 | /health works in the container; full pipeline works in the container | PASS | 10/10 public samples through the container with a real LLM |
-| 70 | Pullable registry image with an exact tag or digest | PARTIAL | **Manual:** push `ghcr.io/<user>/gridwise-llm:1.0.0` (commands in README) and make the package public |
+| 70 | Pullable registry image with an exact tag or digest | PASS | `ghcr.io/atikdevx/gridwise-llm:1.0.0` (`@sha256:a8f213db…c7753`), published by `.github/workflows/docker-publish.yml`. Pulled anonymously, and served 10/10 public samples with real Gemini. |
 | 71 | Public endpoint reachable, no auth, alive during judging | PARTIAL | **Manual:** deploy (`render.yaml` provided) and set `LLM_API_KEY` as a host secret |
 | 72 | Both endpoints tested from outside the dev environment | PARTIAL | **Manual:** after deploying, run `scripts/run_public_samples.py --base-url <public URL>` |
 | 73 | LLM available during judging (keys, quota) | PARTIAL | **Manual:** a Gemini key with enough quota (billing-enabled; free tier limits are low) must be configured on the host |
@@ -124,6 +124,6 @@ PS = Problem Statement, PG = Participant Guide & Evaluation Rubric.
 | 76 | Docker pull/run fallback instructions | PASS | README Docker section |
 | 77 | External tools and libraries credited | PASS | README Dependencies and attribution |
 | 78 | `.env.example` with names only | PASS | `.env.example` |
-| 79 | Repo created after question reveal, private during the event, public after the deadline | PARTIAL | **Manual:** visibility was not changed automatically. Make it public after the deadline. |
+| 79 | Repo created after question reveal, private during the event, public after the deadline | PARTIAL | Repo created 2026-09-18. **It is currently PUBLIC; the rules require private during the event.** **Manual:** set it to private now and back to public after the deadline. Visibility is not changed automatically. |
 | 80 | 3-minute video | PARTIAL | script in `docs/video_script.md`; **manual:** record and upload (≤ 3:00) |
 | 81 | Only synthetic challenge data | PASS | no other data is used |

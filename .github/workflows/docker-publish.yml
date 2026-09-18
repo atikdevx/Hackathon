@@ -6,6 +6,8 @@ name: test-and-publish-image
 on:
   push:
     branches: [main]
+    # Docs-only commits do not rebuild the image, so the submitted digest stays valid.
+    paths-ignore: ["**.md", "docs/**", "prompt.txt"]
   workflow_dispatch:
 
 permissions:
