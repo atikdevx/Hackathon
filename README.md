@@ -369,7 +369,7 @@ docker run --rm -p 8000:8000 -e LLM_API_KEY=<your-gemini-key> ghcr.io/atikdevx/g
 | Image reference | Value |
 |---|---|
 | Tag | `ghcr.io/atikdevx/gridwise-llm:1.0.0` |
-| Digest | `ghcr.io/atikdevx/gridwise-llm@sha256:a8f213db231ccf6a9720481537db8b78de2cc4f393adf12a587c9200dcbc7753` |
+| Digest | `ghcr.io/atikdevx/gridwise-llm@sha256:17c66e1ab21d7d606516e45784ffef80afb2b13bcbe92a64f81235f1c0917760` |
 | Port | `8000` (override with `-e PORT=...`) |
 | Required env | `LLM_API_KEY` (Gemini key); everything else has defaults |
 | Verified | pulled anonymously, `/health` OK, 10/10 public samples with real Gemini (p95 2.5 s) |
