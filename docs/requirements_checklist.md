@@ -124,6 +124,6 @@ PS = Problem Statement, PG = Participant Guide & Evaluation Rubric.
 | 76 | Docker pull/run fallback instructions | PASS | README Docker section |
 | 77 | External tools and libraries credited | PASS | README Dependencies and attribution |
 | 78 | `.env.example` with names only | PASS | `.env.example` |
-| 79 | Repo created after question reveal, private during the event, public after the deadline | PARTIAL | Repo created 2026-09-18. **It is currently PUBLIC; the rules require private during the event.** **Manual:** set it to private now and back to public after the deadline. Visibility is not changed automatically. |
+| 79 | Repo created after question reveal, private during the event, public after the deadline | PARTIAL | Created 2026-09-18 and set to **private** on 2026-09-18 during the event (the GHCR image stays publicly pullable, verified). **Manual:** make it public after the submission deadline. |
 | 80 | 3-minute video | PARTIAL | script in `docs/video_script.md`; **manual:** record and upload (≤ 3:00) |
 | 81 | Only synthetic challenge data | PASS | no other data is used |
