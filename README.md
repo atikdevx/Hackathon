@@ -369,10 +369,10 @@ docker run --rm -p 8000:8000 -e LLM_API_KEY=<your-gemini-key> ghcr.io/atikdevx/g
 | Image reference | Value |
 |---|---|
 | Tag | `ghcr.io/atikdevx/gridwise-llm:1.0.0` |
-| Digest | `ghcr.io/atikdevx/gridwise-llm@sha256:17c66e1ab21d7d606516e45784ffef80afb2b13bcbe92a64f81235f1c0917760` |
+| Digest | `ghcr.io/atikdevx/gridwise-llm@sha256:2e5fc5f995636cafc561cc4a870da6c24de098fa98ca4781476fdcf6763dffdb` |
 | Port | `8000` (override with `-e PORT=...`) |
 | Required env | `LLM_API_KEY` (Gemini key); everything else has defaults |
-| Verified | pulled anonymously, `/health` OK, 10/10 public samples with real Gemini (p95 2.5 s) |
+| Verified | pulled anonymously, `/health` OK, 10/10 public samples with real Gemini |
 
 **Automated publishing:** `.github/workflows/docker-publish.yml` runs on every push to `main`. It runs the test suite, builds a multi-arch image (amd64 + arm64), pushes `ghcr.io/atikdevx/gridwise-llm:1.0.0` (plus `:latest` and `:sha-<commit>`), and smoke-tests `/health` on the published image. It uses GitHub's built-in token, so no personal credentials are needed. Once the first run finishes, open GitHub → your profile → **Packages** → `gridwise-llm` → **Package settings** and set visibility to **Public** so judges can pull without logging in.
 
