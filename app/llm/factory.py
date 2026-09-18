@@ -7,12 +7,13 @@ import logging
 from app.config import OPENAI_PROVIDERS, Settings
 from app.llm.anthropic_provider import AnthropicProvider
 from app.llm.base import LLMProvider
+from app.llm.gemini_provider import GeminiProvider
 from app.llm.interpreter import NoteInterpreter
 from app.llm.openai_compatible_provider import OpenAICompatibleProvider
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_PROVIDERS = (*OPENAI_PROVIDERS, "anthropic")
+SUPPORTED_PROVIDERS = ("gemini", *OPENAI_PROVIDERS, "anthropic")
 
 
 def build_provider(settings: Settings) -> LLMProvider | None:
@@ -21,6 +22,14 @@ def build_provider(settings: Settings) -> LLMProvider | None:
     if not settings.llm_api_key and not keyless_local:
         logger.warning("no LLM API key configured; /optimize-energy will return llm_unavailable")
         return None
+    if settings.llm_provider == "gemini":
+        return GeminiProvider(
+            api_key=settings.llm_api_key,
+            model=settings.llm_model,
+            effort=settings.llm_effort,
+            base_url=settings.llm_base_url,
+            fallback_models=settings.llm_fallback_models,
+        )
     if settings.llm_provider == "anthropic":
         return AnthropicProvider(
             api_key=settings.llm_api_key,

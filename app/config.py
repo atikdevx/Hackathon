@@ -46,9 +46,10 @@ def _env_bool(name: str, default: bool) -> bool:
 
 @dataclass(frozen=True)
 class Settings:
-    # LLM provider selection: "openai" (default), "openai_compatible" (alias) or "anthropic".
+    # LLM provider selection: "gemini" (default), "openai" / "openai_compatible", or "anthropic".
     llm_provider: str
     llm_model: str
+    llm_fallback_models: tuple[str, ...]
     llm_api_key: str | None = field(repr=False)
     llm_base_url: str | None
     llm_timeout_seconds: float
@@ -71,29 +72,50 @@ def _resolve_api_key(provider: str) -> str | None:
     if key and key.strip():
         return key.strip()
     # Provider-native fallbacks so standard env names also work.
-    native = "ANTHROPIC_API_KEY" if provider == "anthropic" else "OPENAI_API_KEY"
-    key = os.getenv(native)
-    return key.strip() if key and key.strip() else None
+    native = {
+        "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+        "anthropic": ("ANTHROPIC_API_KEY",),
+    }.get(provider, ("OPENAI_API_KEY",))
+    for name in native:
+        key = os.getenv(name)
+        if key and key.strip():
+            return key.strip()
+    return None
 
 
 DEFAULT_MODELS = {
+    "gemini": "gemini-3.5-flash-lite",
     "openai": "gpt-5.6-terra",
     "openai_compatible": "gpt-5.6-terra",
     "anthropic": "claude-opus-5",
 }
 
 
+# Tried in order when the primary model is overloaded, out of quota, or timing out.
+DEFAULT_FALLBACK_MODELS = {
+    "gemini": ("gemini-3.1-flash-lite", "gemini-3.5-flash"),
+}
+
+
+def _env_list(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return tuple(item.strip() for item in raw.split(",") if item.strip())
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    provider = _env_str("LLM_PROVIDER", "openai").lower()
+    provider = _env_str("LLM_PROVIDER", "gemini").lower()
     effort = _env_str("LLM_EFFORT", "low").lower()
     return Settings(
         llm_provider=provider,
-        llm_model=_env_str("LLM_MODEL", DEFAULT_MODELS.get(provider, DEFAULT_MODELS["openai"])),
+        llm_model=_env_str("LLM_MODEL", DEFAULT_MODELS.get(provider, DEFAULT_MODELS["gemini"])),
+        llm_fallback_models=_env_list("LLM_FALLBACK_MODELS", DEFAULT_FALLBACK_MODELS.get(provider, ())),
         llm_api_key=_resolve_api_key(provider),
         llm_base_url=os.getenv("LLM_BASE_URL") or None,
-        llm_timeout_seconds=_env_float("LLM_TIMEOUT_SECONDS", 12.0),
-        llm_max_attempts=max(1, _env_int("LLM_MAX_ATTEMPTS", 2)),
+        llm_timeout_seconds=_env_float("LLM_TIMEOUT_SECONDS", 8.0),
+        llm_max_attempts=max(1, _env_int("LLM_MAX_ATTEMPTS", 3)),
         llm_effort=None if effort in {"", "none", "off"} else effort,
         llm_enable_fallbacks=_env_bool("LLM_ENABLE_FALLBACKS", True),
         llm_cache_size=max(0, _env_int("LLM_CACHE_SIZE", 256)),

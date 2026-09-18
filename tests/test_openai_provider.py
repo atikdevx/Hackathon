@@ -104,6 +104,14 @@ def test_http_errors_become_controlled(status):
     assert "secret-ish" not in err.value.message
 
 
+def test_exhausted_credit_is_reported_distinctly():
+    body = {"error": {"type": "insufficient_quota", "code": "credit_balance_exhausted", "message": "No credits"}}
+    handler = lambda request: httpx.Response(429, json=body)  # noqa: E731
+    with pytest.raises(LLMUnavailableError) as err:
+        call(provider_with(handler))
+    assert "credit" in err.value.message
+
+
 def test_timeout_and_connection_errors_are_controlled():
     def timeout(request):
         raise httpx.ReadTimeout("slow")
@@ -138,9 +146,10 @@ def test_non_json_body_is_rejected():
         call(provider_with(handler))
 
 
-def test_openai_is_the_default_provider(monkeypatch):
-    for var in ("LLM_PROVIDER", "LLM_MODEL", "LLM_BASE_URL", "LLM_API_KEY", "ANTHROPIC_API_KEY"):
+def test_openai_provider_selection(monkeypatch):
+    for var in ("LLM_MODEL", "LLM_BASE_URL", "LLM_API_KEY", "ANTHROPIC_API_KEY"):
         monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     get_settings.cache_clear()
     try:
@@ -153,8 +162,9 @@ def test_openai_is_the_default_provider(monkeypatch):
 
 
 def test_openai_without_key_is_not_configured(monkeypatch):
-    for var in ("LLM_API_KEY", "OPENAI_API_KEY", "LLM_BASE_URL", "LLM_PROVIDER"):
+    for var in ("LLM_API_KEY", "OPENAI_API_KEY", "LLM_BASE_URL"):
         monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
     get_settings.cache_clear()
     try:
         assert build_provider(get_settings()) is None

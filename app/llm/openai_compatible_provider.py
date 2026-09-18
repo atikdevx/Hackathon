@@ -22,6 +22,15 @@ _DEFAULT_BASE_URL = "https://api.openai.com/v1"
 _REASONING_MODEL_PREFIXES = ("gpt-5", "gpt-6", "o1", "o3", "o4")
 
 
+def _error_type(resp: httpx.Response) -> str | None:
+    """OpenAI error `type` (e.g. insufficient_quota). Only this field is read; the body is never logged."""
+    try:
+        error = resp.json().get("error") or {}
+        return error.get("type") if isinstance(error, dict) else None
+    except (ValueError, AttributeError):
+        return None
+
+
 def is_reasoning_model(model: str) -> bool:
     return model.startswith(_REASONING_MODEL_PREFIXES)
 
@@ -79,6 +88,9 @@ class OpenAICompatibleProvider:
             raise LLMUnavailableError("Could not reach the language model provider.") from exc
 
         if resp.status_code == 429:
+            if _error_type(resp) == "insufficient_quota":
+                logger.error("openai account has no remaining credit/quota (insufficient_quota)")
+                raise LLMUnavailableError("The language model account has no remaining credit or quota.")
             raise LLMUnavailableError("The language model provider is rate limiting requests.")
         if resp.status_code in (401, 403):
             raise LLMUnavailableError("The language model provider rejected the configured credentials.")
